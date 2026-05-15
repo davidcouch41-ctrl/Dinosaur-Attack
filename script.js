@@ -46,6 +46,7 @@ const state = {
   bombTimer: 0,
   explosionFrame: 0,
   explosionBursts: [],
+  lastTimestamp: 0,
 };
 
 const input = {
@@ -158,6 +159,7 @@ function resetGame() {
   state.bombTimer = 120;
   state.explosionFrame = 0;
   state.explosionBursts = [];
+  state.lastTimestamp = 0;
   updateHud();
 }
 
@@ -312,28 +314,28 @@ function fireBullet() {
   updateHud();
 }
 
-function updateTimers() {
+function updateTimers(deltaFactor) {
   if (state.gunTimer > 0) {
-    state.gunTimer -= 1;
+    state.gunTimer -= deltaFactor;
   }
   if (state.speedTimer > 0) {
-    state.speedTimer -= 1;
+    state.speedTimer -= deltaFactor;
   }
   if (state.slowTimer > 0) {
-    state.slowTimer -= 1;
+    state.slowTimer -= deltaFactor;
   }
   if (state.tailCooldown > 0) {
-    state.tailCooldown -= 1;
+    state.tailCooldown -= deltaFactor;
   }
   if (state.levelBannerTimer > 0) {
-    state.levelBannerTimer -= 1;
+    state.levelBannerTimer -= deltaFactor;
   }
 }
 
-function updatePowerUps() {
+function updatePowerUps(deltaFactor) {
   const pose = getDogPose();
   state.powerUps = state.powerUps.filter((powerUp) => {
-    powerUp.bob += 0.08;
+    powerUp.bob += 0.08 * deltaFactor;
     if (Math.hypot(powerUp.x - pose.headX, powerUp.y - pose.headY) <= dog.radius + 18) {
       collectPowerUp(powerUp.type);
       return false;
@@ -342,11 +344,11 @@ function updatePowerUps() {
   });
 }
 
-function updateBullets() {
+function updateBullets(deltaFactor) {
   state.bullets = state.bullets.filter((bullet) => {
-    bullet.x += bullet.vx;
-    bullet.y += bullet.vy;
-    bullet.life -= 1;
+    bullet.x += bullet.vx * deltaFactor;
+    bullet.y += bullet.vy * deltaFactor;
+    bullet.life -= deltaFactor;
 
     if (bullet.life <= 0 || bullet.x < 0 || bullet.x > arenaSize || bullet.y < 0 || bullet.y > arenaSize) {
       return false;
@@ -367,7 +369,7 @@ function updateBullets() {
   });
 }
 
-function updateGuardsAndNets() {
+function updateGuardsAndNets(deltaFactor) {
   const pose = getDogPose();
 
   for (const guard of state.guards) {
@@ -375,7 +377,7 @@ function updateGuardsAndNets() {
       continue;
     }
 
-    guard.cooldown -= 1;
+    guard.cooldown -= deltaFactor;
     if (guard.cooldown <= 0) {
       spawnNet(guard);
       guard.cooldown = guard.interval;
@@ -383,10 +385,10 @@ function updateGuardsAndNets() {
   }
 
   state.nets = state.nets.filter((net) => {
-    net.x += net.vx;
-    net.y += net.vy;
-    net.spin += 0.16;
-    net.life -= 1;
+    net.x += net.vx * deltaFactor;
+    net.y += net.vy * deltaFactor;
+    net.spin += 0.16 * deltaFactor;
+    net.life -= deltaFactor;
 
     if (net.life <= 0 || net.x < -40 || net.x > arenaSize + 40 || net.y < -40 || net.y > arenaSize + 40) {
       return false;
@@ -401,17 +403,17 @@ function updateGuardsAndNets() {
   });
 }
 
-function updateBombs() {
+function updateBombs(deltaFactor) {
   const pose = getDogPose();
 
-  state.bombTimer -= 1;
+  state.bombTimer -= deltaFactor;
   if (state.bombTimer <= 0) {
     spawnBomb();
     state.bombTimer = Math.max(55, 130 - state.level * 7);
   }
 
   state.bombs = state.bombs.filter((bomb) => {
-    bomb.height -= bomb.fallSpeed;
+    bomb.height -= bomb.fallSpeed * deltaFactor;
 
     if (bomb.height <= 0) {
       if (Math.hypot(bomb.targetX - pose.headX, bomb.targetY - pose.headY) <= pose.headRadius + bomb.radius + 4) {
@@ -424,26 +426,26 @@ function updateBombs() {
   });
 }
 
-function updateDog() {
+function updateDog(deltaFactor) {
   if (state.isGameOver) {
     if (state.explosionFrame > 0) {
-      state.explosionFrame -= 1;
+      state.explosionFrame -= deltaFactor;
     }
     return;
   }
 
   if (state.gameWon) {
-    updateTimers();
+    updateTimers(deltaFactor);
     return;
   }
 
-  updateTimers();
+  updateTimers(deltaFactor);
 
   if (input.left) {
-    dog.angle -= turnRate;
+    dog.angle -= turnRate * deltaFactor;
   }
   if (input.right) {
-    dog.angle += turnRate;
+    dog.angle += turnRate * deltaFactor;
   }
 
   let moveSpeed = baseSpeed;
@@ -460,8 +462,8 @@ function updateDog() {
     moveSpeed *= 0.58;
   }
 
-  const nextX = dog.x + Math.cos(dog.angle) * moveSpeed;
-  const nextY = dog.y + Math.sin(dog.angle) * moveSpeed;
+  const nextX = dog.x + Math.cos(dog.angle) * moveSpeed * deltaFactor;
+  const nextY = dog.y + Math.sin(dog.angle) * moveSpeed * deltaFactor;
 
   dog.x = nextX;
   dog.y = nextY;
@@ -485,10 +487,10 @@ function updateDog() {
     collectBone();
   }
 
-  updatePowerUps();
-  updateBullets();
-  updateGuardsAndNets();
-  updateBombs();
+  updatePowerUps(deltaFactor);
+  updateBullets(deltaFactor);
+  updateGuardsAndNets(deltaFactor);
+  updateBombs(deltaFactor);
 }
 
 function drawBackground() {
@@ -746,19 +748,6 @@ function drawDog() {
   ctx.arc(snoutX + forwardX * headRadius * 0.03, snoutY + forwardY * headRadius * 0.24, headRadius * 0.28, 0.18, Math.PI - 0.18);
   ctx.stroke();
 
-  ctx.fillStyle = "#ff7fa1";
-  ctx.beginPath();
-  ctx.ellipse(
-    snoutX + forwardX * headRadius * 0.06 - Math.sin(bodyAngle) * headRadius * 0.08,
-    snoutY + forwardY * headRadius * 0.22 + Math.cos(bodyAngle) * headRadius * 0.04,
-    headRadius * 0.16,
-    headRadius * 0.12,
-    bodyAngle + 0.3,
-    0,
-    Math.PI * 2,
-  );
-  ctx.fill();
-
   ctx.fillStyle = "#ffb0bb";
   ctx.beginPath();
   ctx.arc(headX + Math.cos(bodyAngle - 1.82) * headRadius * 0.48, headY + Math.sin(bodyAngle - 1.82) * headRadius * 0.48 + headRadius * 0.12, headRadius * 0.12, 0, Math.PI * 2);
@@ -989,8 +978,12 @@ function drawStatusOverlay() {
   }
 }
 
-function loop() {
-  updateDog();
+function loop(timestamp = 0) {
+  const deltaMs = state.lastTimestamp === 0 ? 16.67 : Math.min(33.34, timestamp - state.lastTimestamp);
+  state.lastTimestamp = timestamp;
+  const deltaFactor = deltaMs / 16.67;
+
+  updateDog(deltaFactor);
   drawBackground();
   drawPolice();
   drawBone();
@@ -1043,4 +1036,4 @@ window.addEventListener("keyup", (event) => {
 });
 
 resetGame();
-loop();
+requestAnimationFrame(loop);
