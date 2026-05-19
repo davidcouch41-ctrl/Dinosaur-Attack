@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: clifford-bone-chase
+    name: dinosaur-attack
     runtime: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn config.wsgi:application"
