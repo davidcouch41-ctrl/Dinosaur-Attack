@@ -4,3 +4,4 @@ services:
     runtime: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn config.wsgi:application -c gunicorn.conf.py"
+    healthCheckPath: /
